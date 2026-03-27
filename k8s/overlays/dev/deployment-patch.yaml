@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-prometheus
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: mcp-prometheus
+          image: mcp-prometheus:latest
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          env:
+            - name: DEBUG
+              value: "true"

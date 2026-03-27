@@ -1,0 +1,25 @@
+{
+  "inputs": [
+    {
+      "id": "mcp-prometheus-url",
+      "type": "promptString",
+      "description": "MCP Prometheus SSE endpoint URL",
+      "default": "http://localhost:8080/sse"
+    },
+    {
+      "id": "prometheus-org-id",
+      "type": "promptString",
+      "description": "Prometheus/Mimir Org ID (leave empty for no multi-tenancy)",
+      "default": ""
+    }
+  ],
+  "servers": {
+    "mcp-prometheus": {
+      "type": "sse",
+      "url": "${input:mcp-prometheus-url}",
+      "headers": {
+        "X-Scope-OrgID": "${input:prometheus-org-id}"
+      }
+    }
+  }
+}
