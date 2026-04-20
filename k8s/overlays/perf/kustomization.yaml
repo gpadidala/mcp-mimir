@@ -1,11 +1,18 @@
+###############################################################################
+# MCP Mimir — PERF Environment Overlay
+#
+# Namespace:  sample-perf
+# Key Vault:  sample-perf-eu-kv-01
+# Hostname:   sample-metrics-perf-01.albertsons.com
+# Replicas:   2
+###############################################################################
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mcp-prometheus-perf
+namespace: sample-perf
 
 labels:
   - pairs:
-      app.kubernetes.io/instance: perf
       environment: perf
     includeSelectors: false
 
@@ -14,12 +21,6 @@ resources:
 
 patches:
   - path: deployment-patch.yaml
-  - path: ingress-patch.yaml
-  - path: hpa-patch.yaml
-
-configMapGenerator:
-  - name: mcp-prometheus-config
-    behavior: merge
-    literals:
-      - PROMETHEUS_URL=http://mimir-gateway.mimir-perf.svc.cluster.local:8080/prometheus
-      - PROMETHEUS_ORGID=perf-tenant
+  - path: virtualservice-patch.yaml
+  - path: azure-keyvault-patch.yaml
+  - path: configmap-patch.yaml

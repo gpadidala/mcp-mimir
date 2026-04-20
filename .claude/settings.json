@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/padmajagutti/sample-aiops/**)",
+      "Bash(curl -s http://localhost:9090/api/v1/status/config)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker run:*)",
+      "Bash(curl -s http://localhost:9091/healthz)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/sse)",
+      "Bash(curl -s --max-time 3 http://localhost:8080/sse)",
+      "Read(//Users/padmajagutti/sample-aiops/mcp-mimir/**)",
+      "Bash(PROMETHEUS_ORGID=test-tenant-1 docker compose up -d --build)",
+      "Bash(chmod +x /Users/padmajagutti/sample-aiops/mcp-mimir/k8s/deploy.sh)",
+      "Bash(kubectl kustomize:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/padmajagutti/sample-aiops/mcp-mimir"
+    ]
+  }
+}

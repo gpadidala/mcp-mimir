@@ -1,0 +1,53 @@
+###############################################################################
+# Istio VirtualService for MCP Mimir Server
+#
+# Routes:
+#   /mcp-mimir/*  → rewrite to / on sample-mcp-mimir:8000
+#   /message*     → direct to sample-mcp-mimir:8000 (SSE callback from VS Code)
+#
+# Host is overridden per-environment via Kustomize patches.
+###############################################################################
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: sample-mcp-mimir-vs
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  hosts:
+    - "sample-metrics-dev-01.albertsons.com"
+  gateways:
+    - sample-gateway
+  http:
+    # ── Main route: /mcp-mimir/* → / on the MCP server ──
+    - match:
+        - uri:
+            prefix: /mcp-mimir/
+        - uri:
+            exact: /mcp-mimir
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: sample-mcp-mimir
+            port:
+              number: 8000
+
+    # ── SSE callback route ──
+    # VS Code SSE client posts to /message?sessionId=... after SSE connect.
+    # The SSE server returns "data: /message?sessionId=..." (no prefix),
+    # so VS Code resolves it to https://host/message?sessionId=...
+    - match:
+        - uri:
+            prefix: /message
+      route:
+        - destination:
+            host: sample-mcp-mimir
+            port:
+              number: 8000

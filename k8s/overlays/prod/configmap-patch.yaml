@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-mimir-config
+data:
+  PROMETHEUS_URL: "https://sample-metrics-prod-01.albertsons.com/prometheus"
+  PROMETHEUS_ORGID: "aks-tru-clusters"
+  LOG_LEVEL: "warn"

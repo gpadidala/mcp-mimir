@@ -1,11 +1,18 @@
+###############################################################################
+# MCP Mimir — DEV Environment Overlay
+#
+# Namespace:  sample-dev
+# Key Vault:  sample-dev-eu-kv-01
+# Hostname:   sample-metrics-perf-01.albertsons.com
+# Replicas:   1
+###############################################################################
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mcp-prometheus-dev
+namespace: sample-dev
 
 labels:
   - pairs:
-      app.kubernetes.io/instance: dev
       environment: dev
     includeSelectors: false
 
@@ -13,13 +20,11 @@ resources:
   - ../../base
 
 patches:
+  # ── Deployment: dev replicas, resources, env ──
   - path: deployment-patch.yaml
-  - path: ingress-patch.yaml
-  - path: hpa-patch.yaml
-
-configMapGenerator:
-  - name: mcp-prometheus-config
-    behavior: merge
-    literals:
-      - PROMETHEUS_URL=http://mimir-gateway.mimir-dev.svc.cluster.local:8080/prometheus
-      - PROMETHEUS_ORGID=dev-tenant
+  # ── VirtualService: dev hostname ──
+  - path: virtualservice-patch.yaml
+  # ── Azure Key Vault: dev vault name ──
+  - path: azure-keyvault-patch.yaml
+  # ── ConfigMap: dev-specific config ──
+  - path: configmap-patch.yaml

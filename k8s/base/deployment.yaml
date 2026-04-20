@@ -1,55 +1,165 @@
+###############################################################################
+# MCP Mimir Server — Deployment
+#
+# Production-grade deployment with:
+#   - Security context (non-root, read-only FS, drop ALL caps)
+#   - Health probes (startup, liveness, readiness)
+#   - Node selector & tolerations for AKS agent pool
+#   - Pod anti-affinity for HA
+#   - ConfigMap-driven env vars
+#   - Azure Key Vault token via env
+###############################################################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-prometheus
+  name: sample-mcp-mimir
   labels:
-    app.kubernetes.io/name: mcp-prometheus
-    app.kubernetes.io/component: mcp-server
+    helm.sh/chart: sample-0.1.0
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app.kubernetes.io/version: "0.11.3"
+    app.kubernetes.io/managed-by: Helm
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    portfolio: AI-CloudOps
+    project: SAMPLE
 spec:
   replicas: 1
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app.kubernetes.io/name: mcp-prometheus
+      app.kubernetes.io/name: sample-mcp-mimir
+      app.kubernetes.io/instance: sample-mcp-mimir
+      app: sample-mcp-mimir
+      appcode: SAMPLE
+      costcenter: "9901623"
+      drcategory: "dr3"
+      portfolio: AI-CloudOps
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: mcp-prometheus
-        app.kubernetes.io/component: mcp-server
+        app.kubernetes.io/name: sample-mcp-mimir
+        app.kubernetes.io/instance: sample-mcp-mimir
+        app: sample-mcp-mimir
+        appcode: SAMPLE
+        costcenter: "9901623"
+        drcategory: "dr3"
+        portfolio: AI-CloudOps
+        project: SAMPLE
       annotations:
+        checksum/config: "__CHECKSUM_PLACEHOLDER__"
         prometheus.io/scrape: "true"
-        prometheus.io/port: "9091"
+        prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: mcp-prometheus
+      serviceAccountName: sample-mcp-mimir
+      automountServiceAccountToken: true
+
+      # ── Pod-level security context ──
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
-        fsGroup: 65534
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementalGroups:
+          - 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # ── AKS node placement ──
+      nodeSelector:
+        kubernetes.azure.com/agentpool: escoshdnp02
+
+      tolerations:
+        - key: "appcode"
+          operator: "Equal"
+          value: "sample"
+          effect: "NoExecute"
+
+      # ── Pod anti-affinity for HA ──
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - sample-mcp-mimir
+                topologyKey: kubernetes.io/hostname
+
+      enableServiceLinks: true
+
       containers:
-        - name: mcp-prometheus
-          image: mcp-prometheus:latest
-          imagePullPolicy: Always
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              exec mcp-prometheus serve \
-                --transport "${TRANSPORT}" \
-                --http-addr "${HTTP_ADDR}" \
-                --metrics-addr "${METRICS_ADDR}"
+        - name: mcp-mimir
+          image: "escoacrprod01.azurecr.io/sample/sample-mimir-mcp:v1.0.0-snapshot"
+          imagePullPolicy: IfNotPresent
+
+          # ── Container-level security context ──
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
           ports:
             - name: http-mcp
-              containerPort: 8080
+              containerPort: 8000
               protocol: TCP
             - name: http-metrics
-              containerPort: 9091
+              containerPort: 9090
               protocol: TCP
+
+          # ── Environment variables from ConfigMap ──
           envFrom:
             - configMapRef:
-                name: mcp-prometheus-config
-            - secretRef:
-                name: mcp-prometheus-secret
-                optional: true
+                name: mcp-mimir-config
+
+          # ── Writable /tmp for read-only root FS ──
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+          # ── Health probes ──
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # ── Resources (overridden per environment) ──
           resources:
             requests:
               cpu: 100m
@@ -57,27 +167,10 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http-metrics
-            initialDelaySeconds: 5
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http-metrics
-            initialDelaySeconds: 3
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
-          startupProbe:
-            httpGet:
-              path: /healthz
-              port: http-metrics
-            initialDelaySeconds: 2
-            periodSeconds: 5
-            failureThreshold: 10
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
       terminationGracePeriodSeconds: 30

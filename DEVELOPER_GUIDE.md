@@ -76,7 +76,7 @@ curl http://localhost:9091/healthz
 curl http://localhost:8080/sse
 
 # 5. Verify Prometheus is reachable from inside the container
-docker exec mcp-prometheus wget -qO- $PROMETHEUS_URL/api/v1/status/buildinfo
+docker exec mcp-prometheus sh -c 'wget -qO- $PROMETHEUS_URL/api/v1/status/buildinfo'
 ```
 
 ## Step 5: Connect from VS Code

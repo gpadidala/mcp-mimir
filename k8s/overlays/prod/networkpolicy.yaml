@@ -1,26 +1,37 @@
+###############################################################################
+# NetworkPolicy — Prod only
+#
+# Restricts ingress/egress to only required traffic:
+#   Ingress: Istio ingress gateway (port 8000), Prometheus scraping (port 9090)
+#   Egress:  DNS, Mimir/Prometheus backend
+###############################################################################
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: mcp-prometheus
-  namespace: mcp-prometheus-prod
+  name: sample-mcp-mimir
   labels:
-    app.kubernetes.io/name: mcp-prometheus
-    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/name: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    portfolio: AI-CloudOps
+    project: SAMPLE
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: mcp-prometheus
+      app: sample-mcp-mimir
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    # Allow traffic from ingress controller
+    # Allow traffic from Istio ingress gateway
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: istio-system
       ports:
-        - port: 8080
+        - port: 8000
           protocol: TCP
     # Allow Prometheus scraping metrics
     - from:
@@ -28,10 +39,10 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
-        - port: 9091
+        - port: 9090
           protocol: TCP
   egress:
-    # Allow DNS
+    # Allow DNS resolution
     - to:
         - namespaceSelector: {}
       ports:
@@ -39,12 +50,13 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Allow traffic to Mimir/Prometheus
+    # Allow HTTPS to Mimir/Prometheus backends
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: mimir-prod
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
+        - port: 443
+          protocol: TCP
         - port: 8080
           protocol: TCP
         - port: 9090

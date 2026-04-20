@@ -1,0 +1,485 @@
+###############################################################################
+# MCP Mimir Server — AKS Manifest (DEV) — Single-File Deployment
+# Production-grade Kubernetes deployment for Mimir MCP Server
+#
+# Environment: dev
+# Namespace:   sample-dev
+# Key Vault:   sample-dev-eu-kv-01
+# Hostname:    sample-metrics-perf-01.albertsons.com
+# ACR Image:   escoacrprod01.azurecr.io/sample/sample-mimir-mcp:v1.0.0-snapshot
+#
+# Includes:
+#   1. ServiceAccount
+#   2. AzureKeyVaultSecret (spv.no — akv2k8s operator)
+#   3. ConfigMap (runtime configuration)
+#   4. Deployment (health probes, security context, resource limits)
+#   5. Service (ClusterIP)
+#   6. VirtualService (Istio ingress routing)
+#   7. PodDisruptionBudget
+#
+# Usage:
+#   kubectl apply -f mcp-mimir-aks-dev.yaml
+#
+# Verify:
+#   kubectl get pods -n sample-dev -l app=sample-mcp-mimir
+#   kubectl logs  -n sample-dev -l app=sample-mcp-mimir -f
+#   kubectl port-forward -n sample-dev svc/sample-mcp-mimir 8000:8000
+###############################################################################
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. SERVICE ACCOUNT
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sample-mcp-mimir
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+automountServiceAccountToken: true
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. AZURE KEY VAULT SECRETS (spv.no — akv2k8s operator)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# -- Mimir Service Account Token (MCP → Mimir API auth)
+apiVersion: spv.no/v1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-service-account-token
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+    object:
+      name: mcp-mimir-service-account-token
+      type: secret
+
+---
+# -- TLS CA certificate (Mimir connection)
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-ca
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+    object:
+      name: mcp-mimir-tls-ca
+      type: secret
+  output:
+    secret:
+      name: mcp-mimir-tls-secret
+      dataKey: ca.crt
+
+---
+# -- TLS client certificate
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-cert
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+    object:
+      name: mcp-mimir-tls-cert
+      type: secret
+  output:
+    secret:
+      name: mcp-mimir-tls-secret
+      dataKey: tls.crt
+
+---
+# -- TLS client key
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-key
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+    object:
+      name: mcp-mimir-tls-key
+      type: secret
+  output:
+    secret:
+      name: mcp-mimir-tls-secret
+      dataKey: tls.key
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. CONFIGMAP (runtime configuration)
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-mimir-config
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+data:
+  # ── Prometheus / Mimir Connection ──
+  PROMETHEUS_URL: "https://sample-metrics-perf-01.albertsons.com/prometheus"
+  PROMETHEUS_ORGID: "aks-tru-clusters"
+  PROMETHEUS_USERNAME: ""
+  PROMETHEUS_PASSWORD: ""
+
+  # ── Transport & Server ──
+  TRANSPORT: "sse"
+  HTTP_ADDR: ":8000"
+  METRICS_ADDR: ":9090"
+
+  # ── Logging ──
+  LOG_LEVEL: "debug"
+  LOG_FORMAT: "json"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. DEPLOYMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-mcp-mimir
+  namespace: sample-dev
+  labels:
+    helm.sh/chart: sample-0.1.0
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app.kubernetes.io/version: "0.11.3"
+    app.kubernetes.io/managed-by: Helm
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sample-mcp-mimir
+      app.kubernetes.io/instance: sample-mcp-mimir
+      app: sample-mcp-mimir
+      appcode: SAMPLE
+      costcenter: "9901623"
+      drcategory: "dr3"
+      environment: dev
+      portfolio: AI-CloudOps
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sample-mcp-mimir
+        app.kubernetes.io/instance: sample-mcp-mimir
+        app: sample-mcp-mimir
+        appcode: SAMPLE
+        costcenter: "9901623"
+        drcategory: "dr3"
+        environment: dev
+        portfolio: AI-CloudOps
+        project: SAMPLE
+      annotations:
+        checksum/config: "__CHECKSUM_PLACEHOLDER__"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: sample-mcp-mimir
+      automountServiceAccountToken: true
+
+      # ── Pod-level security context ──
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        supplementalGroups:
+          - 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # ── AKS node placement ──
+      nodeSelector:
+        kubernetes.azure.com/agentpool: escoshdnp02
+
+      tolerations:
+        - key: "appcode"
+          operator: "Equal"
+          value: "sample"
+          effect: "NoExecute"
+
+      # ── Pod anti-affinity ──
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - sample-mcp-mimir
+                topologyKey: kubernetes.io/hostname
+
+      enableServiceLinks: true
+
+      containers:
+        - name: mcp-mimir
+          image: "escoacrprod01.azurecr.io/sample/sample-mimir-mcp:v1.0.0-snapshot"
+          imagePullPolicy: IfNotPresent
+
+          # ── Container-level security context ──
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
+          ports:
+            - name: http-mcp
+              containerPort: 8000
+              protocol: TCP
+            - name: http-metrics
+              containerPort: 9090
+              protocol: TCP
+
+          # ── Environment from ConfigMap ──
+          envFrom:
+            - configMapRef:
+                name: mcp-mimir-config
+
+          # ── Writable /tmp for read-only root filesystem ──
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+          # ── Health probes ──
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http-mcp
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # ── Dev resource limits ──
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
+      terminationGracePeriodSeconds: 30
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. SERVICE (ClusterIP)
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-mcp-mimir
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-mcp
+      port: 8000
+      targetPort: http-mcp
+      protocol: TCP
+    - name: http-metrics
+      port: 9090
+      targetPort: http-metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. VIRTUAL SERVICE (Istio ingress routing)
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: sample-mcp-mimir-vs
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  hosts:
+    - "sample-metrics-perf-01.albertsons.com"
+  gateways:
+    - sample-gateway
+  http:
+    # ── Main route: /mcp-mimir/* → / on the MCP server ──
+    - match:
+        - uri:
+            prefix: /mcp-mimir/
+        - uri:
+            exact: /mcp-mimir
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: sample-mcp-mimir
+            port:
+              number: 8000
+
+    # ── SSE callback route ──
+    # VS Code posts to /message?sessionId=... after SSE connect.
+    # The SSE server returns "data: /message?sessionId=..." (no prefix),
+    # so VS Code resolves it to https://host/message?sessionId=...
+    - match:
+        - uri:
+            prefix: /message
+      route:
+        - destination:
+            host: sample-mcp-mimir
+            port:
+              number: 8000
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. POD DISRUPTION BUDGET
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sample-mcp-mimir
+  namespace: sample-dev
+  labels:
+    app.kubernetes.io/name: sample-mcp-mimir
+    app.kubernetes.io/instance: sample-mcp-mimir
+    app: sample-mcp-mimir
+    appcode: SAMPLE
+    costcenter: "9901623"
+    drcategory: "dr3"
+    environment: dev
+    portfolio: AI-CloudOps
+    project: SAMPLE
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: sample-mcp-mimir

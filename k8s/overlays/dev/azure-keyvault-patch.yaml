@@ -1,0 +1,32 @@
+# Patch all AzureKeyVaultSecret resources to use the DEV Key Vault
+apiVersion: spv.no/v1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-service-account-token
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+---
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-ca
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+---
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-cert
+spec:
+  vault:
+    name: sample-dev-eu-kv-01
+---
+apiVersion: spv.no/v2beta1
+kind: AzureKeyVaultSecret
+metadata:
+  name: mcp-mimir-tls-key
+spec:
+  vault:
+    name: sample-dev-eu-kv-01

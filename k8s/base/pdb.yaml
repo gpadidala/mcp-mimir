@@ -1,14 +1,17 @@
-apiVersion: v1
-kind: ServiceAccount
+apiVersion: policy/v1
+kind: PodDisruptionBudget
 metadata:
   name: sample-mcp-mimir
   labels:
     app.kubernetes.io/name: sample-mcp-mimir
-    app.kubernetes.io/instance: sample-mcp-mimir
     app: sample-mcp-mimir
     appcode: SAMPLE
     costcenter: "9901623"
     drcategory: "dr3"
     portfolio: AI-CloudOps
     project: SAMPLE
-automountServiceAccountToken: true
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: sample-mcp-mimir

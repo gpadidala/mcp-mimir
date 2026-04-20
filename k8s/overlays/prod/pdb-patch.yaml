@@ -1,0 +1,8 @@
+# Prod: require at least 2 pods available during disruptions
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sample-mcp-mimir
+spec:
+  minAvailable: 2
+  maxUnavailable: null

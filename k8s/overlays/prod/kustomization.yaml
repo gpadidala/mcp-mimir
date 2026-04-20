@@ -1,27 +1,29 @@
+###############################################################################
+# MCP Mimir — PROD Environment Overlay
+#
+# Namespace:  sample-prod
+# Key Vault:  sample-prod-eu-kv-01
+# Hostname:   sample-metrics-prod-01.albertsons.com
+# Replicas:   3
+# Extras:     NetworkPolicy, tighter PDB
+###############################################################################
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: mcp-prometheus-prod
+namespace: sample-prod
 
 labels:
   - pairs:
-      app.kubernetes.io/instance: prod
       environment: prod
     includeSelectors: false
 
 resources:
   - ../../base
-  - pdb.yaml
   - networkpolicy.yaml
 
 patches:
   - path: deployment-patch.yaml
-  - path: ingress-patch.yaml
-  - path: hpa-patch.yaml
-
-configMapGenerator:
-  - name: mcp-prometheus-config
-    behavior: merge
-    literals:
-      - PROMETHEUS_URL=http://mimir-gateway.mimir-prod.svc.cluster.local:8080/prometheus
-      - PROMETHEUS_ORGID=prod-tenant
+  - path: virtualservice-patch.yaml
+  - path: azure-keyvault-patch.yaml
+  - path: configmap-patch.yaml
+  - path: pdb-patch.yaml

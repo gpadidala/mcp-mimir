@@ -1,21 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-prometheus
+  name: sample-mcp-mimir
+  labels:
+    environment: dev
 spec:
   replicas: 1
   template:
+    metadata:
+      labels:
+        environment: dev
     spec:
       containers:
-        - name: mcp-prometheus
-          image: mcp-prometheus:latest
+        - name: mcp-mimir
+          image: "escoacrprod01.azurecr.io/sample/sample-mimir-mcp:v1.0.0-snapshot"
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              cpu: 250m
+              cpu: 100m
               memory: 128Mi
-          env:
-            - name: DEBUG
-              value: "true"
+            limits:
+              cpu: 500m
+              memory: 256Mi
